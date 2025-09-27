@@ -201,7 +201,7 @@ python3 run_image_gen.py --model-id ./HunyuanImage-3 --verbose 1 --prompt "A bro
 
 #### 4️⃣ Command Line Arguments
 
-| 参数                   | 说明                                                              | 默认值         |
+| Arguments            | Description                                                     | Default     |
 |----------------------|-----------------------------------------------------------------|-------------|
 | `--prompt`           | Input prompt                                                    | (Required)  |
 | `--model-id`         | Model path                                                      | (Required)  |
