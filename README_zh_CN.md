@@ -1,5 +1,5 @@
 
-[中文文档](./README_zh_CN.md)
+[Read in English](./README.md)
 
 <div align="center">
 
@@ -18,276 +18,258 @@
 
 
 <div align="center">
-  <a href=https://hunyuan.tencent.com/image target="_blank"><img src=https://img.shields.io/badge/Official%20Site-333399.svg?logo=homepage height=22px></a>
+  <a href=xxxx target="_blank"><img src=https://img.shields.io/badge/Official%20Site-333399.svg?logo=homepage height=22px></a>
   <a href=https://huggingface.co/tencent/HunyuanImage-3.0 target="_blank"><img src=https://img.shields.io/badge/%F0%9F%A4%97%20Models-d96902.svg height=22px></a>
   <a href=https://github.com/Tencent-Hunyuan/HunyuanImage-3.0 target="_blank"><img src= https://img.shields.io/badge/Page-bb8a2e.svg?logo=github height=22px></a>
-  <a href=./assets/HunyuanImage_3_0.pdf target="_blank"><img src=https://img.shields.io/badge/Report-b5212f.svg?logo=arxiv height=22px></a>
+  <a href=xxxx target="_blank"><img src=https://img.shields.io/badge/Report-b5212f.svg?logo=arxiv height=22px></a>
   <a href=https://x.com/TencentHunyuan target="_blank"><img src=https://img.shields.io/badge/Hunyuan-black.svg?logo=x height=22px></a>
 </div>
 
-## 🔥🔥🔥 News
-- **September 28, 2025**: 📖 **HunyuanImage-3.0 Technical Report Released** - Comprehensive technical documentation now available
-- **September 28, 2025**: 🚀 **HunyuanImage-3.0 Open Source Release** - Inference code and model weights publicly available
+## 🔥🔥🔥 最新消息
+- **September 28, 2025**: 📖 我们发布了 HunyuanImage-3.0 的技术报告
+- **September 28, 2025**: 🚀 我们开源了 HunyuanImage-3.0 的推理代码与模型权重，以及基于 FlashInfer 的加速推理方案
 
 
-## 🧩 Community Contributions
+## 📑 开源计划
 
-If you develop/use HunyuanImage-3.0 in your projects, welcome to let us know.
-
-## 📑 Open-source Plan
-
-- HunyuanImage-3.0 (Image Generation Model)
-  - [x] Inference 
-  - [x] Pretrain Checkpoints
-  - [ ] Instruct Checkpoints
-  - [ ] VLLM Support
-  - [ ] Distilled Checkpoints
-  - [ ] Image-to-Image Generation
-  - [ ] Multi-turn Interaction
+- HunyuanImage-3.0 (图像生成模型)
+  - [x] 推理代码 
+  - [x] 模型权重
+  - [ ] 模型权重（带推理能力）
+  - [ ] VLLM 加速版本
+  - [ ] 蒸馏版本权重
+  - [ ] 图像编辑能力
+  - [ ] 多轮交互能力
 
 
 ## 🗂️ Contents
-- [🔥🔥🔥 News](#-news)
-- [🧩 Community Contributions](#-community-contributions)
-- [📑 Open-source Plan](#-open-source-plan)
-- [📖 Introduction](#-introduction)
-- [✨ Key Features](#-key-features)
-- [🛠️ Dependencies and Installation](#-dependencies-and-installation)
-  - [💻 System Requirements](#-system-requirements)
-  - [📦 Environment Setup](#-environment-setup)
-  - [📥 Install Dependencies](#-install-dependencies)
-  - [Performance Optimizations](#performance-optimizations)
-- [🚀 Usage](#-usage)
-  - [🔥 Quick Start with Transformers](#-quick-start-with-transformers)
-  - [🏠 Local Installation & Usage](#-local-installation--usage)
-  - [🎨 Interactive Gradio Demo](#-interactive-gradio-demo)
-- [🧱 Models Cards](#-models-cards)
-- [📝 Prompt Guide](#-prompt-guide)
-  - [Manually Writing Prompts](#manually-writing-prompts)
-  - [System Prompt For Automatic Rewriting the Prompt](#system-prompt-for-automatic-rewriting-the-prompt)
-  - [Advanced Tips](#advanced-tips)
-  - [More Cases](#more-cases)
-- [📊 Evaluation](#-evaluation)
-- [📚 Citation](#-citation)
-- [🙏 Acknowledgements](#-acknowledgements)
-- [🌟🚀  Github Star History](#-github-star-history)
+- [🔥🔥🔥 最新消息](#-最新消息)
+- [📑 开源计划](#-开源计划)
+- [📖 概览](#-概览)
+- [✨ 模型亮点](#-模型亮点)
+- [🛠️ 依赖和安装](#-依赖和安装)
+  - [💻 系统要求](#-系统要求)
+  - [📦 环境配置](#-环境配置)
+  - [📥 安装依赖](#-安装依赖)
+  - [推理性能优化](#推理性能优化)
+- [🚀 使用方法](#-使用方法)
+  - [🔥 使用 Transformers 库推理](#-使用-Transformers-库推理)
+  - [🏠 使用本地代码推理](#-使用本地代码推理)
+  - [🎨 使用 Gradio App](#-使用-Gradio-App)
+- [🧱 模型卡片](#-模型卡片)
+- [📝 提示词指引](#-提示词指引)
+  - [更多提示](#更多提示)
+  - [更多示例](#更多示例)
+- [📊 评估结果](#-评估结果)
+- [📚 引用](#-引用)
+- [🙏 致谢](#-致谢)
+- [🌟🚀  Github Star 趋势](#-github-star-趋势)
 
 ---
 
-## 📖 Introduction
+## 📖 概览
 
 **HunyuanImage-3.0** is a groundbreaking native multimodal model that unifies multimodal understanding and generation within an autoregressive framework. Our text-to-image module achieves performance **comparable to or surpassing** leading closed-source models.
+
+**HunyuanImage-3.0** 是一个突破性的原生多模态模型，它在自回归框架内统一了多模态理解和生成任务。它的文生图能力实现了与领先的闭源模型**相当或更优**的性能。
 
 
 <div align="center">
   <img src="./assets/framework.png" alt="HunyuanImage-3.0 Framework" width="90%">
 </div>
 
-## ✨ Key Features
+## ✨ 模型亮点
 
-* 🧠 **Unified Multimodal Architecture:** Moving beyond the prevalent DiT-based architectures, HunyuanImage-3.0 employs a unified autoregressive framework. This design enables a more direct and integrated modeling of text and image modalities, leading to surprisingly effective and contextually rich image generation.
+* 🧠 **统一的多模态架构:** HunyuanImage-3.0 突破当前主流的 DiT 架构，采用统一的自回归框架。该设计能更直接、统一地对文本与图像模态进行建模，实现了语义理解与图像生成的高度融合，从而生成效果惊人、语境丰富的图像。
 
-* 🏆 **The Largest Image Generation MoE Model:** This is the largest open-source image generation Mixture of Experts (MoE) model to date. It features 64 experts and a total of 80 billion parameters, with 13 billion activated per token, significantly enhancing its capacity and performance.
+* 🏆 **最大规模图像生成MoE模型:** 作为当前开源社区参数规模最大的图像生成 MoE 模型，其拥有64个专家、总参数量达 800 亿，单 token 激活 130 亿参数，显著提升了模型容量与性能表现。
 
-* 🎨 **Superior Image Generation Performance:**Through rigorous dataset curation and advanced reinforcement learning post-training, we've achieved an optimal balance between semantic accuracy and visual excellence. The model demonstrates exceptional prompt adherence while delivering photorealistic imagery with stunning aesthetic quality and fine-grained details.
+* 🎨 **卓越的图像生成质量:** 通过精细的数据集构建与强化学习后训练，我们在语义准确性与视觉表现力间取得最佳平衡。该模型不仅能精准遵循提示词要求，更可生成细节丰富、具有摄影级真实感与艺术美感的图像。
 
-* 💭 **Intelligent World-Knowledge Reasoning:** The unified multimodal architecture endows HunyuanImage-3.0 with powerful reasoning capabilities. It leverages its extensive world knowledge to intelligently interpret user intent, automatically elaborating on sparse prompts with contextually appropriate details to produce superior, more complete visual outputs.
+* 💭 **智能的世界知识推理:** 统一的多模态架构赋予 HunyuanImage-3.0 强大的推理能力。它能充分调动海量世界知识，智能解读用户意图，对简略提示词自动进行符合语境的细节扩充，生成更优质、更完整的视觉内容。
 
 
-## 🛠️ Dependencies and Installation
+## 🛠️ 依赖和安装
 
-### 💻 System Requirements
+### 💻 系统要求
 
-* 🖥️ **Operating System:** Linux
-* 🎮 **GPU:** NVIDIA GPU with CUDA support
-* 💾 **Disk Space:** 160GB for model weights
-* 🧠 **GPU Memory:** ≥3×80GB (4×80GB recommended for better performance)
+* 🖥️ **操作系统:** Linux
+* 🎮 **GPU:** 带有 CUDA 支持的英伟达 GPU
+* 💾 **存储空间:** 需要至少 160GB 用于储存模型权重
+* 🧠 **GPU 显存:** 需要至少 3x80G 显存用于模型部署 (推荐使用 4×80GB)
 
-### 📦 Environment Setup
+### 📦 环境配置
 
-* 🐍 **Python:** 3.12+ (recommended and tested)
+* 🐍 **Python:** 3.12+ (推荐)
 * 🔥 **PyTorch:** 2.7.1
 * ⚡ **CUDA:** 12.8
 
-### 📥 Install Dependencies
+### 📥 安装依赖
 
 ```bash
-# 1. First install PyTorch (CUDA 12.8 Version)
+# 1. 首先安装 PyTorch (CUDA 12.8 Version)
 pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu128
 
-# 2. Then install other dependencies
+# 2. 然后安装其他依赖
 pip install -r requirements.txt
 ```
 
-#### Performance Optimizations
+#### 推理性能优化
 
-For **up to 3x faster inference**, install these optimizations:
+获得**多达3倍的推理加速**，需要安装如下依赖：
 
 ```bash
-# FlashAttention for faster attention computation
+# FlashAttention 用于更高效地 attention 计算
 pip install flash-attn==2.8.3 --no-build-isolation
 
-# FlashInfer for optimized moe inference. v0.3.1 is tested.
+# FlashInfer 用于更高效地 MoE 计算. v0.3.1 版本已测试.
 pip install flashinfer-python
 ```
-> 💡**Installation Tips:** It is critical that the CUDA version used by PyTorch matches the system's CUDA version. 
-> FlashInfer relies on this compatibility when compiling kernels at runtime. Pytorch 2.7.1+cu128 is tested.
-> GCC version >=9 is recommended for compiling FlashAttention and FlashInfer.
 
-> ⚡ **Performance Tips:** These optimizations can significantly speed up your inference!
+> 💡**安装提示:** 最关键的是要求 PyTorch 所使用的 CUDA 版本要与系统安装的 CUDA 版本一致。这是因为 FlashInfer 同时依赖于 PyTorch
+> 和系统的 CUDA 库来完成运行时算子编译。我们测试了 PyTorch 2.7.1+cu128 版本。
+> 此外，推荐使用 GCC 版本 >=9 用于编译 FlashInfer.
 
-> 💡**Notation:** When FlashInfer is enabled, the first inference may be slower (about 10 minutes) due to kernel compilation. Subsequent inferences on the same machine will be much faster.
+> ⚡ **性能提示:** 该优化可以显著提升模型生文和生图的推理速度。
 
-## 🚀 Usage
+> 💡**注意:** 当 FlashInfer 启用时, 首次推理时会自动编译算子导致很慢 (大约需要 10 分制)，请耐心等待，后续推理就会很快了。
 
-### 🔥 Quick Start with Transformers
+## 🚀 使用方法
 
-Download model weights:
+### 🔥 使用 Transformers 库推理
+
+下载模型权重:
 
 ```bash
-# Download from HuggingFace and rename the directory.
-# Notice that the directory name should not contain dots, which may cause issues when loading using Transformers.
+# 从 HuggingFace 下载权重并重命名
+# 注意 --local-dir 指定的目录名称不允许有小数点，否则会导致 transformers 无法加载
 hf download tencent/HunyuanImage-3.0 --local-dir ./HunyuanImage-3
 ```
 
-Run with Transformers:
+使用 Transformers 加载模型:
 
 ```python
 from transformers import AutoModelForCausalLM
 
-# Load the model
+# 加载模型
 model_id = "./HunyuanImage-3"
-# Currently we can not load the model using HF model_id `tencent/HunyuanImage-3.0` directly 
-# due to the dot in the name.
+# 目前我们无法使用 HF 的模型 ID `tencent/HunyuanImage-3.0` 直接加载模型（由于小数点导致不兼容）
 
 kwargs = dict(
-    attn_implementation="sdpa",     # Use "flash_attention_2" if FlashAttention is installed
+    attn_implementation="sdpa",     # 如果你安装了 FlashAttention，这里可以替换为 "flash_attention_2"
     trust_remote_code=True,
     torch_dtype="auto",
     device_map="auto",
-    moe_impl="eager",   # Use "flashinfer" if FlashInfer is installed
+    moe_impl="eager",   # 如果你安装了 FlashInfer，这里可以替换为 "flashinfer"
 )
 
 model = AutoModelForCausalLM.from_pretrained(model_id, **kwargs)
 model.load_tokenizer(model_id)
 
-# generate the image
-prompt = "A brown and white dog is running on the grass"
+# 生成图像
+prompt = "一只棕色和白色相间的小狗奔跑在田野上。"
 image = model.generate_image(prompt=prompt, stream=True)
 image.save("image.png")
 ```
 
-### 🏠 Local Installation & Usage
+### 🏠 使用本地代码推理
 
-#### 1️⃣ Clone the Repository
+#### 1️⃣ 克隆 GitHub 仓库
 
 ```bash
 git clone https://github.com/Tencent-Hunyuan/HunyuanImage-3.0.git
 cd HunyuanImage-3.0/
 ```
 
-#### 2️⃣ Download Model Weights
+#### 2️⃣ 下载 HF 模型权重
 
 ```bash
-# Download from HuggingFace
+# 从 huggingface 下载
 hf download tencent/HunyuanImage-3.0 --local-dir ./HunyuanImage-3
 ```
 
-#### 3️⃣ Run the Demo
+#### 3️⃣ 运行推理
 
 ```bash
-python3 run_image_gen.py --model-id ./HunyuanImage-3 --verbose 1 --prompt "A brown and white dog is running on the grass"
+python3 run_image_gen.py --model-id ./HunyuanImage-3 --verbose 1 --prompt "一只棕色和白色相间的小狗奔跑在田野上。"
 ```
 
-### 🎨 Interactive Gradio Demo
+### 🎨 使用 Gradio App
 
-Launch an interactive web interface for easy text-to-image generation.
+我们提供了一个基于 Gradio 的 App 可以运行 HunyuanImage-3.0
 
-#### 1️⃣ Install Gradio
+#### 1️⃣ 安装 Gradio
 
 ```bash
 pip install gradio>=4.21.0
 ```
 
-#### 2️⃣ Configure Environment
+#### 2️⃣ 环境配置
 
 ```bash
-# Set your model path
+# 设置模型权重的路径
 export MODEL_ID="path/to/your/model"
 
-# Optional: Configure GPU usage (default: 0,1,2,3)
+# 配置使用的 GPU 卡号
 export GPUS="0,1,2,3"
 
-# Optional: Configure host and port (default: 0.0.0.0:443)
+# 配置 Web 服务的 Host 和 Port
 export HOST="0.0.0.0"
 export PORT="443"
 ```
 
-#### 3️⃣ Launch the Web Interface
+#### 3️⃣ 启动 Gradio App
 
-**Basic Launch:**
 ```bash
+# 启动
 sh run_app.sh
-```
-
-**With Performance Optimizations:**
-```bash
-# Use both optimizations for maximum performance
+# 启动时开启 FA2 和 FlashInfer
 sh run_app.sh --moe-impl flashinfer --attn-impl flash_attention_2
 ```
 
-#### 4️⃣ Access the Interface
-
-> 🌐 **Web Interface:** Open your browser and navigate to `http://localhost:443` (or your configured port)
+打开你的浏览器访问 `http://<host>:<port>`
 
 
-## 🧱 Models Cards
+## 🧱 模型卡片
 
-| Model | Params | Download | Recommended VRAM | Supported |
-| --- | --- | --- | --- | --- |
-| Pretrain | 80B total (13B active) | [HuggingFace](https://huggingface.co/tencent/HunyuanImage-3.0) | ≥ 3 × 80 GB | ✅ Text-to-Image<br>✅ Prompt following<br>✅ Multimodal capability
-| Instruct | 80B total (13B active) | [HuggingFace](https://huggingface.co/tencent/HunyuanImage-3.0-Instruct) | ≥ 3 × 80 GB | ✅ Text-to-Image<br>✅ Prompt following<br>✅ Prompt Self-Rewrite <br>✅ CoT Think
-
-
-
-Notes:
-- Install performance extras (FlashAttention, FlashInfer) for faster inference.
-- Multi‑GPU inference is recommended for the Base model.
+| 模型                        | 参数量             | 下载地址                                                                    | 显存          | 功能                                |
+|---------------------------|-----------------|-------------------------------------------------------------------------|-------------|-----------------------------------|
+| HunyuanImage-3.0          | 总计 80B (激活 13B) | [HuggingFace](https://huggingface.co/tencent/HunyuanImage-3.0)          | ≥ 3 × 80 GB | ✅ 文生图                             |
+| HunyuanImage-3.0-Instruct | 总计 80B (激活 13B) | [HuggingFace](https://huggingface.co/tencent/HunyuanImage-3.0-Instruct) | ≥ 3 × 80 GB | ✅ 文生图<br>✅ Prompt 改写 <br>✅ CoT 思考 |
 
 
-## 📝 Prompt Guide
+## 📝 提示词指引
 
-### Manually Writing Prompts.
-The Pretrain Checkpoint does not automatically rewrite or enhance input prompts, Instruct Checkpoint can rewrite or enhance input prompts with thinking . For optimal results currently, we recommend community partners consulting our official guide on how to write effective prompts.
+### 手动编写提示词
 
-Reference: [HunyuanImage 3.0 Prompt Handbook](
-https://docs.qq.com/doc/DUVVadmhCdG9qRXBU)
+基础模型（HunyuanImage-3.0）不包含提示词改写或增强功能。为了获得最佳效果，建议参考我们的[HunyuanImage 3.0 提示词手册](https://docs.qq.com/doc/DUVVadmhCdG9qRXBU)获得更好的生图效果。
 
+### 基于 LLM 的提示词改写
 
-### System Prompt For Automatic Rewriting the Prompt.
+我们在本仓库的 `PE` 目录中提供了一些系统提示词，你可以基于这些系统提示词使用 DeepSeek 来自动扩写和优化用户提示词：
 
-We've included two system prompts in the PE folder of this repository that leverage DeepSeek to automatically enhance user inputs:
+* **system_prompt_universal**: 该系统提示将摄影风格、艺术提示转换为详细内容。
+* **system_prompt_text_rendering**: 该系统提示将UI/海报/文本渲染的提示词转换为适合该模型的详细描述。
 
-* **system_prompt_universal**: This system prompt converts photographic style, artistic prompts into a detailed one.
-* **system_prompt_text_rendering**: This system prompt converts UI/Poster/Text Rending prompts to a deailed on that suits the model.
+注意这些系统提示词为中文版本，因为 Deepseek 对中文系统提示词效果更好。如果你想用于英文为主的模型，可以将其翻译成英文，或者参考 PE 文件中的注释进行编写。
 
-Note that these system prompts are in Chinese because Deepseek works better with Chinese system prompts. If you want to use it for English oriented model, you may translate it into English or refer to the comments in the PE file as a guide.
+我们还使用[腾讯元器工作流](https://yuanqi.tencent.com/agent/H69VgtJdj3Dz)实现了 `system_prompt_universal` 的改写功能，你可以直接尝试使用。
 
-We also create a [Yuanqi workflow](https://yuanqi.tencent.com/agent/H69VgtJdj3Dz) to implent the universal one, you can directly try it.
+### 更多提示
+- **内容优先级**: 书写提示词时，首先描述主体和动作，然后是关于环境和风格的具体细节。更通用的描述框架是：**主体和场景 + 图像质量和风格 + 构图和视角 + 光线和氛围 + 技术参数**。可以在该结构前后添加关键词。
 
-### Advanced Tips
-- **Content Priority**: Focus on describing the main subject and action first, followed by details about the environment and style. A more general description framework is: **Main subject and scene + Image quality and style + Composition and perspective + Lighting and atmosphere + Technical parameters**. Keywords can be added both before and after this structure.
+- **图像分辨率**: 我们的模型不仅支持多种分辨率，还提供**自动分辨率** `auto` 的选项。在 `auto` 模式下，模型根据输入提示自动预测图像分辨率。当然，你也可以指定具体的分辨率如 `1280x768`，或者 `4:3` 这样的宽高比。
 
-- **Image resolution**: Our model not only supports multiple resolutions but also offers both **automatic and specified resolution** options. In auto mode, the model automatically predicts the image resolution based on the input prompt. In specified mode (like traditional DiT), the model outputs an image resolution that strictly aligns with the user's chosen resolution.
+### 更多示例
 
-### More Cases
-Our model can follow complex instructions to generate high‑quality, creative images.
+HunyuanImage-3.0 可以遵循复杂的指令，生成高质量、富有创意的图像。
 
 <div align="center">
   <img src="./assets/banner_all.jpg" width=100% alt="HunyuanImage 3.0 Demo">
 </div>
 
-Our model can effectively process very long text inputs, enabling users to precisely control the finer details of generated images. Extended prompts allow for intricate elements to be accurately captured, making it ideal for complex projects requiring precision and creativity.
+HunyuanImage-3.0 可以处理非常长的文本输入，允许用户精细控制生成图像的细节。通过扩展提示词，可以准确捕捉复杂元素，非常适合需要精确和创意的复杂项目。
+
 <p align="center">
 <table>
 <thead>
@@ -324,10 +306,10 @@ Our model can effectively process very long text inputs, enabling users to preci
 </table>
 </p>
 
-## 📊 Evaluation
+## 📊 评估结果
 
-* 🤖 **SSAE (Machine Evaluation)**   
-SSAE (Structured Semantic Alignment Evaluation) is an intelligent evaluation metric for image-text alignment based on advanced multimodal large language models (MLLMs). We extracted 3500 key points across 12 categories, then used multimodal large language models to automatically evaluate and score by comparing the generated images with these key points based on the visual content of the images. Mean Image Accuracy represents the image-wise average score across all key points, while Global Accuracy directly calculates the average score across all key points.
+* 🤖 **SSAE (机器指标)**   
+SSAE (Structured Semantic Alignment Evaluation) 是一种基于先进的多模态大语言模型（MLLM）的智能图文对齐评估指标。我们提取了涵盖12个类别的3500个关键点，然后利用多模态大语言模型根据图像的视觉内容，将生成的图像与这些关键点进行自动对比评估和打分。Mean Image Accuracy 表示所有关键点的图像级平均得分，而 Global Accuracy 则是直接计算所有关键点的平均得分。
 
 <p align="center">
   <img src="./assets/ssae_side_by_side_comparison.png" width=98% alt="Human Evaluation with Other Models">
@@ -338,18 +320,20 @@ SSAE (Structured Semantic Alignment Evaluation) is an intelligent evaluation met
 </p>
 
 
-* 👥 **GSB (Human Evaluation)** 
+* 👥 **GSB (人工评测)** 
 
-We adopted the GSB (Good/Same/Bad) evaluation method commonly used to assess the relative performance between two models from an overall image perception perspective. In total, we utilized 1,000 text prompts, generating an equal number of image samples for all compared models in a single run. For a fair comparison, we conducted inference only once for each prompt, avoiding any cherry-picking of results. When comparing with the baseline methods, we maintained the default settings for all selected models. The evaluation was performed by more than 100 professional evaluators. 
+我们采用了常用于评估两个模型在整体图像感知方面相对表现的 GSB（Good/Same/Bad）评测方法。我们总共使用了1000个文本提示词，在一次运行中为所有比较的模型生成了相同数量的图像样本。为了公平比较，我们对每个提示词仅进行了一次推理，避免了结果的挑选偏差。在与基线方法进行比较时，我们保持所有选定模型的默认设置不变。评测由100多名专业评审员完成。
 
 <p align="center">
   <img src="./assets/gsb.png" width=98% alt="Human Evaluation with Other Models">
 </p>
 
 
-## 📚 Citation
+* 🏆 **排行榜** - 即将更新
 
-If you find HunyuanImage-3.0 useful in your research, please cite our work:
+## 📚 引用
+
+如果您在研究中发现 HunyuanImage-3.0 有用，可以使用如下的 bibtex 引用我们的工作：
 
 ```bibtex
 @misc{HunyuanImage-3.0,
@@ -360,9 +344,9 @@ If you find HunyuanImage-3.0 useful in your research, please cite our work:
 }
 ```
 
-## 🙏 Acknowledgements
+## 🙏 致谢
 
-We extend our heartfelt gratitude to the following open-source projects and communities for their invaluable contributions:
+我们衷心感谢以下开源项目和社区的宝贵贡献：
 
 * 🤗 [Transformers](https://github.com/huggingface/transformers) - State-of-the-art NLP library
 * 🎨 [Diffusers](https://github.com/huggingface/diffusers) - Diffusion models library  
@@ -370,7 +354,7 @@ We extend our heartfelt gratitude to the following open-source projects and comm
 * ⚡ [FlashAttention](https://github.com/Dao-AILab/flash-attention) - Memory-efficient attention
 * 🚀 [FlashInfer](https://github.com/flashinfer-ai/flashinfer) - Optimized inference engine
 
-## 🌟🚀 Github Star History
+## 🌟🚀 Github Star 趋势
 
 [![GitHub stars](https://img.shields.io/github/stars/Tencent-Hunyuan/HunyuanImage-3.0?style=social)](https://github.com/Tencent-Hunyuan/HunyuanImage-3.0)
 [![GitHub forks](https://img.shields.io/github/forks/Tencent-Hunyuan/HunyuanImage-3.0?style=social)](https://github.com/Tencent-Hunyuan/HunyuanImage-3.0)
