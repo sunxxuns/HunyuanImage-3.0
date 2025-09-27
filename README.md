@@ -38,8 +38,8 @@ If you develop/use HunyuanImage-3.0 in your projects, welcome to let us know.
 
 - HunyuanImage-3.0 (Image Generation Model)
   - [x] Inference 
-  - [x] Pretrain Checkpoints
-  - [ ] Instruct Checkpoints
+  - [x] HunyuanImage-3.0 Checkpoints
+  - [ ] HunyuanImage-3.0-Instruct Checkpoints (with reasoning)
   - [ ] VLLM Support
   - [ ] Distilled Checkpoints
   - [ ] Image-to-Image Generation
@@ -142,7 +142,7 @@ pip install flashinfer-python
 
 ### 🔥 Quick Start with Transformers
 
-Download model weights:
+#### 1️⃣ Download model weights
 
 ```bash
 # Download from HuggingFace and rename the directory.
@@ -150,7 +150,7 @@ Download model weights:
 hf download tencent/HunyuanImage-3.0 --local-dir ./HunyuanImage-3
 ```
 
-Run with Transformers:
+#### 2️⃣ Run with Transformers
 
 ```python
 from transformers import AutoModelForCausalLM
@@ -199,6 +199,20 @@ hf download tencent/HunyuanImage-3.0 --local-dir ./HunyuanImage-3
 python3 run_image_gen.py --model-id ./HunyuanImage-3 --verbose 1 --prompt "A brown and white dog is running on the grass"
 ```
 
+#### 4️⃣ Command Line Arguments
+
+| 参数                   | 说明                                                              | 默认值         |
+|----------------------|-----------------------------------------------------------------|-------------|
+| `--prompt`           | Input prompt                                                    | (Required)  |
+| `--model-id`         | Model path                                                      | (Required)  |
+| `--attn-impl`        | Attention implementation. Either `sdpa` or `flash_attention_2`. | `sdpa`      |
+| `--moe-impl`         | MoE implementation. Either `eager` or `flashinfer`              | `eager`     |
+| `--seed`             | Random seed for image generation                                | `None`      |
+| `--diff-infer-steps` | Diffusion infer steps                                           | `50`        |
+| `--image-size`       | Image resolution. Can be `auto`, like `1280x768` or `16:9`      | `auto`      |
+| `--save`             | Image save path.                                                | `image.png` |
+| `--verbose`          | Verbose level. 0: No log; 1: log inference information.         | `0`         |
+
 ### 🎨 Interactive Gradio Demo
 
 Launch an interactive web interface for easy text-to-image generation.
@@ -243,10 +257,10 @@ sh run_app.sh --moe-impl flashinfer --attn-impl flash_attention_2
 
 ## 🧱 Models Cards
 
-| Model | Params | Download | Recommended VRAM | Supported |
-| --- | --- | --- | --- | --- |
-| Pretrain | 80B total (13B active) | [HuggingFace](https://huggingface.co/tencent/HunyuanImage-3.0) | ≥ 3 × 80 GB | ✅ Text-to-Image<br>✅ Prompt following<br>✅ Multimodal capability
-| Instruct | 80B total (13B active) | [HuggingFace](https://huggingface.co/tencent/HunyuanImage-3.0-Instruct) | ≥ 3 × 80 GB | ✅ Text-to-Image<br>✅ Prompt following<br>✅ Prompt Self-Rewrite <br>✅ CoT Think
+| Model                     | Params | Download | Recommended VRAM | Supported |
+|---------------------------| --- | --- | --- | --- |
+| HunyuanImage-3.0          | 80B total (13B active) | [HuggingFace](https://huggingface.co/tencent/HunyuanImage-3.0) | ≥ 3 × 80 GB | ✅ Text-to-Image
+| HunyuanImage-3.0-Instruct | 80B total (13B active) | [HuggingFace](https://huggingface.co/tencent/HunyuanImage-3.0-Instruct) | ≥ 3 × 80 GB | ✅ Text-to-Image<br>✅ Prompt Self-Rewrite <br>✅ CoT Think
 
 
 

@@ -34,8 +34,8 @@
 
 - HunyuanImage-3.0 (图像生成模型)
   - [x] 推理代码 
-  - [x] 模型权重
-  - [ ] 模型权重（带推理能力）
+  - [x] 模型权重（HunyuanImage-3.0）
+  - [ ] 模型权重（HunyuanImage-3.0-Instruct，带推理能力）
   - [ ] VLLM 加速版本
   - [ ] 蒸馏版本权重
   - [ ] 图像编辑能力
@@ -138,7 +138,7 @@ pip install flashinfer-python
 
 ### 🔥 使用 Transformers 库推理
 
-下载模型权重:
+#### 1️⃣ 下载模型权重
 
 ```bash
 # 从 HuggingFace 下载权重并重命名
@@ -146,7 +146,7 @@ pip install flashinfer-python
 hf download tencent/HunyuanImage-3.0 --local-dir ./HunyuanImage-3
 ```
 
-使用 Transformers 加载模型:
+#### 2️⃣ 使用 Transformers 加载模型并推理
 
 ```python
 from transformers import AutoModelForCausalLM
@@ -193,6 +193,21 @@ hf download tencent/HunyuanImage-3.0 --local-dir ./HunyuanImage-3
 ```bash
 python3 run_image_gen.py --model-id ./HunyuanImage-3 --verbose 1 --prompt "一只棕色和白色相间的小狗奔跑在田野上。"
 ```
+
+#### 4️⃣ 参数说明
+
+| 参数                   | 说明                                             | 默认值         |
+|----------------------|------------------------------------------------|-------------|
+| `--prompt`           | 输入的提示词                                         | (必填)        |
+| `--model-id`         | 模型权重路径                                         | (必填)        |
+| `--attn-impl`        | attention 实现方式，可选 `sdpa` 或 `flash_attention_2` | `sdpa`      |
+| `--moe-impl`         | MoE 实现方式，可选 `eager` 或 `flashinfer`             | `eager`     |
+| `--seed`             | 生图的随机种子                                        | `None`      |
+| `--diff-infer-steps` | 采样步数                                           | `50`        |
+| `--image-size`       | 生成图像的分辨率，可选 `auto`, `1280x768` 或 `16:9`        | `auto`      |
+| `--save`             | 保存生成图像的路径                                      | `image.png` |
+| `--verbose`          | 日志打印等级，0: 不打印，1: 打印推理信息                        | `0`         |
+
 
 ### 🎨 使用 Gradio App
 
