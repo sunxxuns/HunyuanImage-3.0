@@ -1313,6 +1313,7 @@ class TokenizerWrapper(object):
             # We can add special tokens for the bot lastest message according to different tasks
             bot_response_prefix = dict(
                 auto=_bot_prefix,
+                image="",
                 think=f"{_bot_prefix}<think>",
                 recaption=f"{_bot_prefix}<recaption>",
                 img_ratio=f"{_bot_prefix}{answer_prefix}<boi><img_size_{image_base_size}>",
@@ -1345,15 +1346,15 @@ class TokenizerWrapper(object):
             batch_system_prompt: Optional[List[str]] = None,
             batch_cot_text: Optional[List[str]] = None,
             max_length: Optional[int] = None,
-            bot_task: str = "auto",    # auto/think/recaption/img_ratio
+            bot_task: str = "auto",    # auto/image/think/recaption/img_ratio
             image_base_size: int = 1024,
             sequence_template: str = "pretrain",
             cfg_factor: int = 1,
             add_assistant_prefix: Optional[bool] = None,
             drop_think: bool = False,
     ) -> Dict[str, Any]:
-        assert bot_task in ["auto", "think", "recaption", "img_ratio"], \
-            f"bot_task should be one of ['auto', 'think', 'recaption', 'img_ratio'], but got {bot_task}."
+        assert bot_task in ["image", "auto", "think", "recaption", "img_ratio"], \
+            f"bot_task should be one of ['image', 'auto', 'think', 'recaption', 'img_ratio'], but got {bot_task}."
 
         if batch_message_list is None:
             # Simple text-to-image or text-cot-to-image task

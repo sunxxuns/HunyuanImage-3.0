@@ -2344,6 +2344,7 @@ class HunyuanImage3ForCausalMM(HunyuanImage3PreTrainedModel, GenerationMixin):
             extra_auto_stops = [tkw.boi_token_id]
         stop_token_id = dict(
             auto=[tkw.eos_token_id] + extra_auto_stops,
+            image=[tkw.eos_token_id],
             recaption=[tkw.end_recaption_token_id, tkw.end_answer_token_id, tkw.eos_token_id],
             think=[tkw.end_recaption_token_id, tkw.end_answer_token_id, tkw.eos_token_id],
             img_ratio=extra_auto_stops,

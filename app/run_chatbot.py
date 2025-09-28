@@ -213,6 +213,7 @@ def create_ui_interface(args):
                             ("3:4", "1152x896"),
                             ("16:9", "768x1280"),
                             ("9:16", "1280x768"),
+                            ("21:9", "640x1408"),
                         ], label="Image size", value=args.image_size)
                         seed = gr.Number(
                             label="Seed", minimum=-1, maximum=1_000_000, value=args.seed, step=1, precision=0,
