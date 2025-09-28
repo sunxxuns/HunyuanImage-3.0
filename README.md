@@ -105,7 +105,7 @@ If you develop/use HunyuanImage-3.0 in your projects, welcome to let us know.
 
 * 🖥️ **Operating System:** Linux
 * 🎮 **GPU:** NVIDIA GPU with CUDA support
-* 💾 **Disk Space:** 160GB for model weights
+* 💾 **Disk Space:** 170GB for model weights
 * 🧠 **GPU Memory:** ≥3×80GB (4×80GB recommended for better performance)
 
 ### 📦 Environment Setup
