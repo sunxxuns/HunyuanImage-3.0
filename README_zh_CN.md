@@ -25,6 +25,10 @@
   <a href=https://x.com/TencentHunyuan target="_blank"><img src=https://img.shields.io/badge/Hunyuan-black.svg?logo=x height=22px></a>
 </div>
 
+<p align="center">
+    👏 加入我们的 <a href="assets/WECHAT.md" target="_blank">WeChat</a> 和 <a href="https://discord.gg/ehjWMqF5wY">Discord</a>
+</p>
+
 ## 🔥🔥🔥 最新消息
 - **September 28, 2025**: 📖 我们发布了 HunyuanImage-3.0 的技术报告
 - **September 28, 2025**: 🚀 我们开源了 HunyuanImage-3.0 的推理代码与模型权重，以及基于 FlashInfer 的加速推理方案
