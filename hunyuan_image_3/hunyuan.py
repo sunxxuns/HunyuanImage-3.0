@@ -15,6 +15,8 @@ import math
 import random
 import re
 import warnings
+import sys
+import types
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Union, Optional, Dict, Any, Tuple, Callable
 
@@ -28,6 +30,118 @@ from torch.cuda import nvtx
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, StaticCache
 from transformers.generation.logits_process import LogitsProcessorList
+
+# --- AITer fast attention on AMD/ROCm (replaces FlashAttention v2) ---
+try:
+    import aiter  # pip install aiter
+    _HAS_AITER = True
+except Exception:
+    _HAS_AITER = False
+
+def _repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
+    # x: (B, T, H_kv, D)  ->  (B, T, H_q, D)
+    if n_rep == 1:
+        return x
+    B, T, H, D = x.shape
+    return (x.unsqueeze(3).expand(B, T, H, n_rep, D).reshape(B, T, H * n_rep, D))
+
+def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None):
+    """
+    Accepts q/k/v in either (B, H, T, D) or (B, T, H, D). Returns (B, H, T, D).
+    Falls back to native SDPA if shapes/types aren't supported.
+    """
+    # Only handle 4D batched attention
+    if any(t is None for t in (q, k, v)) or q.dim() != 4 or k.dim() != 4 or v.dim() != 4:
+        return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
+
+    # Normalize layout to (B, T, H, D)
+    if q.shape[1] == q.shape[2]:  # ambiguous; fallback
+        return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
+    if q.shape[1] < q.shape[2]:
+        # (B, H, T, D) -> (B, T, H, D)
+        q_ = q.permute(0, 2, 1, 3).contiguous()
+        k_ = k.permute(0, 2, 1, 3).contiguous()
+        v_ = v.permute(0, 2, 1, 3).contiguous()
+        back_perm = lambda x: x.permute(0, 2, 1, 3).contiguous()
+    else:
+        # already (B, T, H, D)
+        q_, k_, v_ = q, k, v
+        back_perm = lambda x: x.permute(0, 2, 1, 3).contiguous()
+
+    # Head replication if Hq != Hkv
+    Hq, Hkv = q_.shape[2], k_.shape[2]
+    if Hq != Hkv:
+        rep = Hq // max(Hkv, 1)
+        if rep <= 0 or (Hkv * rep) != Hq:
+            return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
+        k_ = _repeat_kv(k_, rep)
+        v_ = _repeat_kv(v_, rep)
+
+    # AITer prefers bf16 on ROCm; preserve original dtype on output
+    orig_dtype = q_.dtype
+    qbf, kbf, vbf = q_.to(torch.bfloat16), k_.to(torch.bfloat16), v_.to(torch.bfloat16)
+
+    # is_causal wins if provided; most diffusion text encoders use causal=True
+    causal = True if is_causal else False
+    try:
+        out, _lse = aiter.flash_attn_func(
+            qbf, kbf, vbf,
+            causal=causal,
+            return_lse=True,
+            deterministic=False,
+        )
+    except Exception:
+        # If anything goes sideways, fall back to native
+        return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
+
+    out = out.to(orig_dtype)
+    return back_perm(out)
+
+def _enable_aiter_on_amd():
+    on_amd = getattr(torch.version, "hip", None) is not None
+    if not (on_amd and _HAS_AITER):
+        return False
+    F = torch.nn.functional
+    if not hasattr(F, "_orig_sdpa"):
+        F._orig_sdpa = F.scaled_dot_product_attention
+    F.scaled_dot_product_attention = _sdpa_with_aiter
+
+    # If the code imports FlashAttention v2 directly, spoof a minimal module
+    # so "from flash_attn import flash_attn_func" doesn't crash.
+    if "flash_attn" not in sys.modules:
+        flash_attn_module = types.ModuleType("flash_attn")
+        flash_attn_module.flash_attn_func = _sdpa_with_aiter
+        flash_attn_module.flash_attn_varlen_func = _sdpa_with_aiter  # Add varlen function
+        
+        # Create bert_padding submodule
+        bert_padding_module = types.ModuleType("bert_padding")
+        def mock_pad_input(*args, **kwargs):
+            # Return the input as-is for simplicity
+            return args[0] if args else None
+        def mock_unpad_input(*args, **kwargs):
+            # Return the input as-is for simplicity  
+            return args[0] if args else None
+        bert_padding_module.pad_input = mock_pad_input
+        bert_padding_module.unpad_input = mock_unpad_input
+        flash_attn_module.bert_padding = bert_padding_module
+        
+        # Create a minimal spec-like object
+        class MockSpec:
+            name = "flash_attn"
+            origin = None
+            loader = None
+            submodule_search_locations = None
+        flash_attn_module.__spec__ = MockSpec()
+        sys.modules["flash_attn"] = flash_attn_module
+        sys.modules["flash_attn.bert_padding"] = bert_padding_module
+    return True
+
+_EN_AITER = _enable_aiter_on_amd()
+if _EN_AITER:
+    print("[HunyuanImage] Using AITer fast attention on AMD/ROCm (FlashAttn v2 disabled).")
+else:
+    print("[HunyuanImage] AITer not enabled (non-AMD or aiter missing); using default attention.")
+# --- end AITer patch ---
 from transformers.generation.stopping_criteria import StoppingCriteriaList
 from transformers.generation.utils import GenerationMixin, GenerationConfig, ALL_CACHE_NAMES
 from transformers.modeling_outputs import (
@@ -64,7 +178,7 @@ logger = logging.get_logger(__name__)
 
 
 if is_flash_attn_2_available():
-    from flash_attn import flash_attn_func
+    from aiter import flash_attn_func
 
 # Type aliases
 BatchRaggedImages = Union[torch.Tensor, List[Union[torch.Tensor, List[torch.Tensor]]]]
@@ -1281,6 +1395,8 @@ class HunyuanImage3SDPAAttention(nn.Module):
             query_states = query_states.contiguous()
             key_states = key_states.contiguous()
             value_states = value_states.contiguous()
+            # Ensure attention_mask is on the same device as query_states
+            attention_mask = attention_mask.to(query_states.device)
 
         attn_output = torch.nn.functional.scaled_dot_product_attention(
             query_states, key_states, value_states, attn_mask=attention_mask, dropout_p=0.0

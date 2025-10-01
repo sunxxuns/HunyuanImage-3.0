@@ -23,7 +23,7 @@ def parse_args():
     parser = argparse.ArgumentParser("Commandline arguments for running HunyuanImage-3 locally")
     parser.add_argument("--prompt", type=str, required=True, help="Prompt to run")
     parser.add_argument("--model-id", type=str, default="./HunyuanImage-3", help="Path to the model")
-    parser.add_argument("--attn-impl", type=str, default="sdpa", choices=["sdpa", "flash_attention_2"],
+    parser.add_argument("--attn-impl", type=str, default="flash_attention_2", choices=["sdpa", "flash_attention_2"],
                         help="Attention implementation. 'flash_attention_2' requires flash attention to be installed.")
     parser.add_argument("--moe-impl", type=str, default="eager", choices=["eager", "flashinfer"],
                         help="MoE implementation. 'flashinfer' requires FlashInfer to be installed.")
@@ -96,26 +96,38 @@ def main(args):
     model = HunyuanImage3ForCausalMM.from_pretrained(args.model_id, **kwargs)
     model.load_tokenizer(args.model_id)
 
-    # Rewrite prompt with DeepSeek
+    # Rewrite prompt with DeepSeek (or use dummy prompts if no API key)
     if args.rewrite:
         # Get request key_id and key_secret for DeepSeek
         deepseek_key_id = os.getenv("DEEPSEEK_KEY_ID")
         deepseek_key_secret = os.getenv("DEEPSEEK_KEY_SECRET")
         if not deepseek_key_id or not deepseek_key_secret:
-            raise ValueError(f"DeepSeek API key is not set!!! The Pretrain Checkpoint does not "
-                             f"automatically rewrite or enhance input prompts, for optimal results currently,"
-                             f"we recommend community partners to use deepseek to rewrite the prompts.")
-        deepseek_client = DeepSeekClient(deepseek_key_id, deepseek_key_secret)
-        
-        if args.sys_deepseek_prompt == "universal":
-            system_prompt = system_prompt_universal
-        elif args.sys_deepseek_prompt == "text_rendering":
-            system_prompt = system_prompt_text_rendering
+            print("DeepSeek API key is not set. Using dummy prompt enhancement instead.")
+            # Use dummy prompt enhancement based on the system prompt type
+            if args.sys_deepseek_prompt == "universal":
+                # Enhanced prompt for universal style
+                enhanced_prompt = args.prompt #f"A brown and white dog is running on the grass. Photorealistic style, dynamic action shot from a low angle perspective. Natural outdoor lighting with warm sunlight filtering through the grass. The dog's fur is detailed and textured, with brown and white patches clearly visible. The grass is lush and green, slightly blurred in the background to create depth of field. f/2.8 aperture, 85mm lens, shallow depth of field, 8K resolution."
+            elif args.sys_deepseek_prompt == "text_rendering":
+                # Enhanced prompt for text rendering style
+                enhanced_prompt = args.prompt # f"This is a photorealistic image of a brown and white dog running on grass. The dog is captured in mid-stride with its legs extended, showing dynamic movement. The dog has a mixed brown and white coat with natural fur texture. The background consists of lush green grass that extends to the horizon. Natural outdoor lighting illuminates the scene with warm, golden sunlight. The composition uses a low-angle perspective to emphasize the dog's movement and energy. The image has high resolution and sharp detail throughout."
+            else:
+                enhanced_prompt = args.prompt  # Fallback to original prompt
+            
+            print("Enhanced prompt (dummy): {}".format(enhanced_prompt))
+            args.prompt = enhanced_prompt
         else:
-            raise ValueError(f"Invalid system prompt: {args.sys_deepseek_prompt}")
-        prompt, _ = deepseek_client.run_single_recaption(system_prompt, args.prompt)
-        print("rewrite prompt: {}".format(prompt))
-        args.prompt = prompt
+            # Use actual DeepSeek API
+            deepseek_client = DeepSeekClient(deepseek_key_id, deepseek_key_secret)
+            
+            if args.sys_deepseek_prompt == "universal":
+                system_prompt = system_prompt_universal
+            elif args.sys_deepseek_prompt == "text_rendering":
+                system_prompt = system_prompt_text_rendering
+            else:
+                raise ValueError(f"Invalid system prompt: {args.sys_deepseek_prompt}")
+            prompt, _ = deepseek_client.run_single_recaption(system_prompt, args.prompt)
+            print("rewrite prompt: {}".format(prompt))
+            args.prompt = prompt
 
     image = model.generate_image(
         prompt=args.prompt,
