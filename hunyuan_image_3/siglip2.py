@@ -56,10 +56,12 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
     """
     # Only handle 4D batched attention
     if any(t is None for t in (q, k, v)) or q.dim() != 4 or k.dim() != 4 or v.dim() != 4:
+        print(f"cannot use aiter in siglip2.py q={q}, k={k}, v={v}")
         return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal)
 
     # Normalize layout to (B, T, H, D)
     if q.shape[1] == q.shape[2]:  # ambiguous; fallback
+        print(f"cannot use aiter in siglip2.py {q.shape[1]} != {q.shape[2]}")
         return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal)
     if q.shape[1] < q.shape[2]:
         # (B, H, T, D) -> (B, T, H, D)
@@ -76,6 +78,7 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
     head_dim = q_.shape[-1]
     if head_dim > 256:
         # Fall back to native SDPA if head dimension exceeds CK limit
+        print(f"cannot use aiter in siglip2.py, head_dim = {head_dim} > 256")
         return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal)
 
     # Head replication if Hq != Hkv
@@ -83,6 +86,7 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
     if Hq != Hkv:
         rep = Hq // max(Hkv, 1)
         if rep <= 0 or (Hkv * rep) != Hq:
+            print(f"cannot use aiter in siglip2.py rep: {rep} Hkv * rep {Hkv * rep} Hq: {Hq}")
             return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal)
         k_ = _repeat_kv(k_, rep)
         v_ = _repeat_kv(v_, rep)
@@ -100,8 +104,9 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
             return_lse=True,
             deterministic=False,
         )
-    except Exception:
+    except Exception as e:
         # If anything goes sideways, fall back to native
+        print(f"cannot use aiter in siglip2.py error: {e}")
         return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal)
 
     out = out.to(orig_dtype)
@@ -122,19 +127,19 @@ def _enable_aiter_on_amd():
         flash_attn_module = types.ModuleType("flash_attn")
         flash_attn_module.flash_attn_func = _sdpa_with_aiter
         flash_attn_module.flash_attn_varlen_func = _sdpa_with_aiter  # Add varlen function
-        
+
         # Create bert_padding submodule
         bert_padding_module = types.ModuleType("bert_padding")
         def mock_pad_input(*args, **kwargs):
             # Return the input as-is for simplicity
             return args[0] if args else None
         def mock_unpad_input(*args, **kwargs):
-            # Return the input as-is for simplicity  
+            # Return the input as-is for simplicity
             return args[0] if args else None
         bert_padding_module.pad_input = mock_pad_input
         bert_padding_module.unpad_input = mock_unpad_input
         flash_attn_module.bert_padding = bert_padding_module
-        
+
         # Create a minimal spec-like object
         class MockSpec:
             name = "flash_attn"

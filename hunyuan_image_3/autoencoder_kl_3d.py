@@ -44,10 +44,12 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
     """
     # Only handle 4D batched attention
     if any(t is None for t in (q, k, v)) or q.dim() != 4 or k.dim() != 4 or v.dim() != 4:
+        print(f"skip aiter")
         return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
 
     # Normalize layout to (B, T, H, D)
     if q.shape[1] == q.shape[2]:  # ambiguous; fallback
+        print(f"skip aiter")
         return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
     if q.shape[1] < q.shape[2]:
         # (B, H, T, D) -> (B, T, H, D)
@@ -65,6 +67,7 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
     if Hq != Hkv:
         rep = Hq // max(Hkv, 1)
         if rep <= 0 or (Hkv * rep) != Hq:
+            print(f"skip aiter")
             return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
         k_ = _repeat_kv(k_, rep)
         v_ = _repeat_kv(v_, rep)
@@ -92,6 +95,7 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
 def _enable_aiter_on_amd():
     on_amd = getattr(torch.version, "hip", None) is not None
     if not (on_amd and _HAS_AITER):
+        print(f"aiter not available")
         return False
     F = torch.nn.functional
     if not hasattr(F, "_orig_sdpa"):
@@ -104,19 +108,19 @@ def _enable_aiter_on_amd():
         flash_attn_module = types.ModuleType("flash_attn")
         flash_attn_module.flash_attn_func = _sdpa_with_aiter
         flash_attn_module.flash_attn_varlen_func = _sdpa_with_aiter  # Add varlen function
-        
+
         # Create bert_padding submodule
         bert_padding_module = types.ModuleType("bert_padding")
         def mock_pad_input(*args, **kwargs):
             # Return the input as-is for simplicity
             return args[0] if args else None
         def mock_unpad_input(*args, **kwargs):
-            # Return the input as-is for simplicity  
+            # Return the input as-is for simplicity
             return args[0] if args else None
         bert_padding_module.pad_input = mock_pad_input
         bert_padding_module.unpad_input = mock_unpad_input
         flash_attn_module.bert_padding = bert_padding_module
-        
+
         # Create a minimal spec-like object
         class MockSpec:
             name = "flash_attn"
@@ -229,7 +233,7 @@ def forward_with_checkpointing(module, *inputs, use_checkpointing=False):
 
 class Conv3d(nn.Conv3d):
     """
-    Perform Conv3d on patches with numerical differences from nn.Conv3d within 1e-5. 
+    Perform Conv3d on patches with numerical differences from nn.Conv3d within 1e-5.
     Only symmetric padding is supported.
     """
 
