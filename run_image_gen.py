@@ -14,6 +14,7 @@
 import argparse
 import os
 from pathlib import Path
+import torch
 from hunyuan_image_3.hunyuan import HunyuanImage3ForCausalMM
 from PE.deepseek import DeepSeekClient
 from PE.system_prompt import system_prompt_universal, system_prompt_text_rendering
@@ -28,7 +29,7 @@ def parse_args():
     parser.add_argument("--moe-impl", type=str, default="eager", choices=["eager", "flashinfer"],
                         help="MoE implementation. 'flashinfer' requires FlashInfer to be installed.")
     parser.add_argument("--seed", type=int, default=None, help="Random seed. Use None for random seed.")
-    parser.add_argument("--diff-infer-steps", type=int, default=50, help="Number of inference steps.")
+    parser.add_argument("--diff-infer-steps", type=int, default=5, help="Number of inference steps.")
     parser.add_argument("--image-size", type=str, default="auto",
                         help="'auto' means image size is determined by the model. Alternatively, it can be in the "
                              "format of 'HxW' or 'H:W', which will be aligned to the set of preset sizes.")
@@ -48,10 +49,15 @@ def parse_args():
     parser.add_argument("--save", type=str, default="image.png", help="Path to save the generated image")
     parser.add_argument("--verbose", type=int, default=0, help="Verbose level")
     parser.add_argument("--rewrite", type=int, default=1, help="Whether to rewrite the prompt with DeepSeek")
-    parser.add_argument("--sys-deepseek-prompt", type=str, choices=["universal", "text_rendering"], 
+    parser.add_argument("--sys-deepseek-prompt", type=str, choices=["universal", "text_rendering"],
                         default="universal", help="System prompt for rewriting the prompt")
 
     parser.add_argument("--reproduce", action="store_true", help="Whether to reproduce the results")
+    parser.add_argument("--profile", action="store_true", help="Enable torch profiler to capture trace")
+    parser.add_argument("--profile-trace-path", type=str, default="profile_trace.json",
+                        help="Path to save the profiler trace")
+    parser.add_argument("--profile-steps", type=int, default=1,
+                        help="Number of steps to profile (default: 1)")
     return parser.parse_args()
 
 
@@ -112,13 +118,13 @@ def main(args):
                 enhanced_prompt = args.prompt # f"This is a photorealistic image of a brown and white dog running on grass. The dog is captured in mid-stride with its legs extended, showing dynamic movement. The dog has a mixed brown and white coat with natural fur texture. The background consists of lush green grass that extends to the horizon. Natural outdoor lighting illuminates the scene with warm, golden sunlight. The composition uses a low-angle perspective to emphasize the dog's movement and energy. The image has high resolution and sharp detail throughout."
             else:
                 enhanced_prompt = args.prompt  # Fallback to original prompt
-            
+
             print("Enhanced prompt (dummy): {}".format(enhanced_prompt))
             args.prompt = enhanced_prompt
         else:
             # Use actual DeepSeek API
             deepseek_client = DeepSeekClient(deepseek_key_id, deepseek_key_secret)
-            
+
             if args.sys_deepseek_prompt == "universal":
                 system_prompt = system_prompt_universal
             elif args.sys_deepseek_prompt == "text_rendering":
@@ -129,18 +135,73 @@ def main(args):
             print("rewrite prompt: {}".format(prompt))
             args.prompt = prompt
 
-    image = model.generate_image(
-        prompt=args.prompt,
-        seed=args.seed,
-        image_size=args.image_size,
-        use_system_prompt=args.use_system_prompt,
-        system_prompt=args.system_prompt,
-        bot_task=args.bot_task,
-        diff_infer_steps=args.diff_infer_steps,
-        verbose=args.verbose,
-        stream=True,
-    )
-   
+    if args.profile:
+        print(f"Profiling enabled. Will capture {args.profile_steps} step(s) and save trace to {args.profile_trace_path}")
+
+        # Configure profiler
+        profiler = torch.profiler.profile(
+            activities=[
+                torch.profiler.ProfilerActivity.CPU,
+                torch.profiler.ProfilerActivity.CUDA,
+            ],
+            schedule=torch.profiler.schedule(
+                wait=0,
+                warmup=0,
+                active=args.profile_steps,
+                repeat=1
+            ),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(
+                dir_name=os.path.dirname(args.profile_trace_path) or ".",
+                worker_name="hunyuan_image_gen"
+            ),
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True,
+            with_flops=True,
+            with_modules=True
+        )
+
+        print(f"start profiling")
+        profiler.start()
+
+        # Generate image with profiling
+        image = model.generate_image(
+            prompt=args.prompt,
+            seed=args.seed,
+            image_size=args.image_size,
+            use_system_prompt=args.use_system_prompt,
+            system_prompt=args.system_prompt,
+            bot_task=args.bot_task,
+            diff_infer_steps=args.diff_infer_steps,
+            verbose=args.verbose,
+            stream=True,
+        )
+
+        profiler.stop()
+        print(f"start profiling")
+
+        # Export trace
+        profiler.export_chrome_trace(args.profile_trace_path)
+        print(f"Profiler trace saved to {args.profile_trace_path}")
+
+        # Print profiling summary
+        print("\nProfiling Summary:")
+        print(profiler.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+
+    else:
+        # Generate image without profiling
+        image = model.generate_image(
+            prompt=args.prompt,
+            seed=args.seed,
+            image_size=args.image_size,
+            use_system_prompt=args.use_system_prompt,
+            system_prompt=args.system_prompt,
+            bot_task=args.bot_task,
+            diff_infer_steps=args.diff_infer_steps,
+            verbose=args.verbose,
+            stream=True,
+        )
+
     Path(args.save).parent.mkdir(parents=True, exist_ok=True)
     image.save(args.save)
     print(f"Image saved to {args.save}")
