@@ -62,12 +62,20 @@ def print_profile_help():
     print("Advanced Options:")
     print("  --profile-detailed           Enable detailed profiling (FLOPS, modules)")
     print("  --profile-timing             Enable simple timing measurements")
+    print("  --profile-diffusion-steps N  Profile only N diffusion steps (default: all)")
+    print("  --profile-reduce-size        Reduce profile size by disabling detailed recording")
+    print()
+    print("Torch Compile Options:")
+    print("  --compile-model              Compile entire model with torch.compile")
+    print("  --compile-mode MODE          Compile mode: default, reduce-overhead, max-autotune")
     print()
     print("Example Usage:")
     print("  python run_image_gen.py --profile --prompt 'a cat'")
+    print("  python run_image_gen.py --profile --profile-diffusion-steps 2 --profile-reduce-size")
     print("  python run_image_gen.py --profile --profile-detailed --profile-timing \\")
     print("    --profile-activities cpu cuda --profile-sort-by cuda_time_total \\")
     print("    --profile-export-format both --profile-trace-path my_trace")
+    print("  python run_image_gen.py --profile --compile-model --profile-reduce-size")
     print("="*60)
 
 
@@ -147,6 +155,15 @@ def parse_args():
                         help="Track peak memory usage during profiling")
     parser.add_argument("--profile-help", action="store_true",
                         help="Show detailed help for profiling options")
+    parser.add_argument("--compile-model", action="store_true",
+                        help="Compile the entire model with torch.compile for additional optimization")
+    parser.add_argument("--compile-mode", type=str, default="reduce-overhead",
+                        choices=["default", "reduce-overhead", "max-autotune"],
+                        help="Torch compile mode (default: reduce-overhead)")
+    parser.add_argument("--profile-diffusion-steps", type=int, default=None,
+                        help="Number of diffusion steps to profile (default: same as diff-infer-steps)")
+    parser.add_argument("--profile-reduce-size", action="store_true",
+                        help="Reduce profile size by disabling detailed recording (shapes, stack, flops)")
     return parser.parse_args()
 
 
@@ -246,6 +263,24 @@ def main(args):
     )
     model = HunyuanImage3ForCausalMM.from_pretrained(args.model_id, **kwargs)
     model.load_tokenizer(args.model_id)
+    
+    # Apply model-level compilation if requested
+    if args.compile_model:
+        print(f"Compiling model with torch.compile (mode: {args.compile_mode})...")
+        
+        # Set environment variables to improve compilation
+        import os
+        os.environ["TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS"] = "1"
+        os.environ["TORCH_COMPILE_DEBUG"] = "1"
+        
+        # Compile the model with better settings
+        model = torch.compile(
+            model, 
+            mode=args.compile_mode,
+            fullgraph=False,  # Allow graph breaks for better compatibility
+            dynamic=True,     # Enable dynamic shapes
+        )
+        print("Model compilation completed!")
 
     # Rewrite prompt with DeepSeek (or use dummy prompts if no API key)
     if args.rewrite:
@@ -296,21 +331,45 @@ def main(args):
             elif activity == "privateuse1":
                 activities.append(torch.profiler.ProfilerActivity.PRIVATEUSE1)
 
-        # Configure profiler
-        profiler = torch.profiler.profile(
-            activities=activities,
-            schedule=torch.profiler.schedule(
-                wait=args.profile_wait,
-                warmup=args.profile_warmup,
-                active=args.profile_steps,
-                repeat=args.profile_repeat
-            ),
-            record_shapes=True,
-            profile_memory=True,
-            with_stack=True,
-            with_flops=args.profile_detailed,
-            with_modules=args.profile_detailed
-        )
+        # Configure profiler with size reduction options
+        record_shapes = not args.profile_reduce_size
+        with_stack = not args.profile_reduce_size
+        with_flops = args.profile_detailed and not args.profile_reduce_size
+        with_modules = args.profile_detailed and not args.profile_reduce_size
+        
+        # Create a custom profiler that can be controlled at diffusion step level
+        if args.profile_diffusion_steps is not None:
+            # Use a more targeted profiler for specific diffusion steps
+            profiler = torch.profiler.profile(
+                activities=activities,
+                schedule=torch.profiler.schedule(
+                    wait=0,  # Start immediately
+                    warmup=0,  # No warmup needed
+                    active=args.profile_diffusion_steps,  # Profile only the specified diffusion steps
+                    repeat=1  # Single run
+                ),
+                record_shapes=record_shapes,
+                profile_memory=True,
+                with_stack=with_stack,
+                with_flops=with_flops,
+                with_modules=with_modules
+            )
+        else:
+            # Use the original profiler configuration
+            profiler = torch.profiler.profile(
+                activities=activities,
+                schedule=torch.profiler.schedule(
+                    wait=args.profile_wait,
+                    warmup=args.profile_warmup,
+                    active=args.profile_steps,
+                    repeat=args.profile_repeat
+                ),
+                record_shapes=record_shapes,
+                profile_memory=True,
+                with_stack=with_stack,
+                with_flops=with_flops,
+                with_modules=with_modules
+            )
 
         # Initialize timing and memory tracking
         import time
@@ -327,6 +386,12 @@ def main(args):
         print(f"start profiling")
         profiler.start()
 
+        # Determine number of diffusion steps for profiling
+        profile_diffusion_steps = args.profile_diffusion_steps if args.profile_diffusion_steps is not None else args.diff_infer_steps
+        
+        if args.profile_diffusion_steps is not None and args.profile_diffusion_steps != args.diff_infer_steps:
+            print(f"Profiling with {profile_diffusion_steps} diffusion steps (different from inference steps: {args.diff_infer_steps})")
+
         # Generate image with profiling
         image = model.generate_image(
             prompt=args.prompt,
@@ -335,7 +400,7 @@ def main(args):
             use_system_prompt=args.use_system_prompt,
             system_prompt=args.system_prompt,
             bot_task=args.bot_task,
-            diff_infer_steps=args.diff_infer_steps,
+            diff_infer_steps=profile_diffusion_steps,
             verbose=args.verbose,
             stream=True,
         )
