@@ -86,6 +86,7 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
     # is_causal wins if provided; most diffusion text encoders use causal=True
     causal = True if is_causal else False
     try:
+        print(f"XXXX {aiter.flash_attn_func}")
         out, _lse = aiter.flash_attn_func(
             qbf, kbf, vbf,
             causal=causal,
@@ -94,6 +95,7 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
         )
     except Exception:
         # If anything goes sideways, fall back to native
+        assert 0
         print(f"cannot use aiter in hunyuan.py")
         return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
 
@@ -183,6 +185,8 @@ logger = logging.get_logger(__name__)
 if is_flash_attn_2_available():
     print(f"importing aiter")
     from aiter import flash_attn_func
+else:
+    assert 0
 
 # Type aliases
 BatchRaggedImages = Union[torch.Tensor, List[Union[torch.Tensor, List[torch.Tensor]]]]
@@ -1481,7 +1485,10 @@ class HunyuanImage3FlashAttention2(HunyuanImage3SDPAAttention):
 
         mode = kwargs.get("mode", "gen_text")
         # For gen_text and gen_image, we need to handle the attention differently
+        torch.cuda.set_device(q_fa.device.index)
         with nvtx.range("attention"):
+            assert "aiter" in str(getattr(flash_attn_func, "__module__", "")), \
+            f"flash_attn_func is not AITer: {flash_attn_func}"
             if mode == "gen_text":
                 if attention_mask is None:
                     attn_output = flash_attn_func(q_fa, k_fa, v_fa, causal=False)   # decode attention
@@ -1838,7 +1845,7 @@ class HunyuanImage3ForCausalMM(HunyuanImage3PreTrainedModel, GenerationMixin):
         self._tkwrapper: Optional[TokenizerWrapper] = None
 
         # Initialize image preprocessor (for conditional images)
-        print(f"XXXX config {self.config}")
+        # print(f"XXXX config {self.config}")
         self.image_processor = HunyuanImage3ImageProcessor(config)
 
         # vae and gen_image pipeline

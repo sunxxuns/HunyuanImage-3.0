@@ -13,11 +13,62 @@
 
 import argparse
 import os
+import sys
 from pathlib import Path
 import torch
 from hunyuan_image_3.hunyuan import HunyuanImage3ForCausalMM
 from PE.deepseek import DeepSeekClient
 from PE.system_prompt import system_prompt_universal, system_prompt_text_rendering
+
+
+def print_profile_help():
+    """Print detailed help for profiling options"""
+    print("\n" + "="*60)
+    print("PROFILING OPTIONS HELP")
+    print("="*60)
+    print("Basic Profiling:")
+    print("  --profile                    Enable profiling")
+    print("  --profile-trace-path PATH    Save trace to PATH (default: profile_trace.json)")
+    print("  --profile-steps N            Number of steps to profile (default: 1)")
+    print()
+    print("Schedule Control:")
+    print("  --profile-wait N             Wait N steps before profiling starts (default: 0)")
+    print("  --profile-warmup N           Warmup N steps before profiling (default: 0)")
+    print("  --profile-repeat N           Repeat profiling N times (default: 1)")
+    print()
+    print("Activities (what to profile):")
+    print("  --profile-activities [cpu] [cuda] [kineto] [privateuse1]")
+    print("    Default: cpu cuda")
+    print()
+    print("Output Format:")
+    print("  --profile-export-format [chrome|json|both]")
+    print("    chrome: Chrome trace format (for Chrome DevTools)")
+    print("    json:   JSON format")
+    print("    both:   Export both formats")
+    print()
+    print("Analysis Options:")
+    print("  --profile-sort-by METRIC     Sort results by metric")
+    print("    Options: cpu_time, cuda_time, cpu_time_total, cuda_time_total,")
+    print("             cpu_memory_usage, cuda_memory_usage, self_cpu_time,")
+    print("             self_cuda_time, count")
+    print("  --profile-row-limit N        Show top N results (default: 10)")
+    print("  --profile-group-by FIELD     Group results by field")
+    print("    Options: none, stack")
+    print()
+    print("Memory Analysis:")
+    print("  --profile-memory-format [alloc_self|alloc_total|self|total]")
+    print("  --profile-memory-peak        Track peak memory usage")
+    print()
+    print("Advanced Options:")
+    print("  --profile-detailed           Enable detailed profiling (FLOPS, modules)")
+    print("  --profile-timing             Enable simple timing measurements")
+    print()
+    print("Example Usage:")
+    print("  python run_image_gen.py --profile --prompt 'a cat'")
+    print("  python run_image_gen.py --profile --profile-detailed --profile-timing \\")
+    print("    --profile-activities cpu cuda --profile-sort-by cuda_time_total \\")
+    print("    --profile-export-format both --profile-trace-path my_trace")
+    print("="*60)
 
 
 def parse_args():
@@ -58,7 +109,93 @@ def parse_args():
                         help="Path to save the profiler trace")
     parser.add_argument("--profile-steps", type=int, default=1,
                         help="Number of steps to profile (default: 1)")
+    parser.add_argument("--profile-warmup", type=int, default=0,
+                        help="Number of warmup steps before profiling starts (default: 0)")
+    parser.add_argument("--profile-wait", type=int, default=0,
+                        help="Number of wait steps before profiling starts (default: 0)")
+    parser.add_argument("--profile-repeat", type=int, default=1,
+                        help="Number of times to repeat profiling (default: 1)")
+    parser.add_argument("--profile-activities", type=str, nargs="+", 
+                        choices=["cpu", "cuda", "kineto", "privateuse1"],
+                        default=["cpu", "cuda"],
+                        help="Profiler activities to record (default: cpu cuda)")
+    parser.add_argument("--profile-sort-by", type=str, 
+                        choices=["cpu_time", "cuda_time", "cpu_time_total", "cuda_time_total", 
+                                "cpu_memory_usage", "cuda_memory_usage", "self_cpu_time", 
+                                "self_cuda_time", "count"],
+                        default="cuda_time_total",
+                        help="Sort profiling results by this metric (default: cuda_time_total)")
+    parser.add_argument("--profile-row-limit", type=int, default=10,
+                        help="Number of rows to show in profiling summary (default: 10)")
+    parser.add_argument("--profile-export-format", type=str, 
+                        choices=["chrome", "json", "both"],
+                        default="chrome",
+                        help="Export format for profiler trace (default: chrome)")
+    parser.add_argument("--profile-memory-format", type=str,
+                        choices=["alloc_self", "alloc_total", "self", "total"],
+                        default="total",
+                        help="Memory format for profiling (default: total)")
+    parser.add_argument("--profile-group-by", type=str,
+                        choices=["none", "stack"],
+                        default="none",
+                        help="Group profiling results by this field (default: none)")
+    parser.add_argument("--profile-detailed", action="store_true",
+                        help="Enable detailed profiling with additional metrics")
+    parser.add_argument("--profile-timing", action="store_true",
+                        help="Enable simple timing measurements alongside profiling")
+    parser.add_argument("--profile-memory-peak", action="store_true",
+                        help="Track peak memory usage during profiling")
+    parser.add_argument("--profile-help", action="store_true",
+                        help="Show detailed help for profiling options")
     return parser.parse_args()
+
+
+def validate_profile_args(args):
+    """Validate profiling arguments and provide helpful warnings"""
+    if args.profile:
+        # Check if CUDA is available when CUDA profiling is requested
+        if "cuda" in args.profile_activities and not torch.cuda.is_available():
+            print("Warning: CUDA profiling requested but CUDA is not available. Removing CUDA from activities.")
+            args.profile_activities = [a for a in args.profile_activities if a != "cuda"]
+        
+        # Check if Kineto is available when Kineto profiling is requested
+        if "kineto" in args.profile_activities:
+            try:
+                # Check if Kineto is available
+                torch.profiler.ProfilerActivity.KINETO
+            except AttributeError:
+                print("Warning: Kineto profiling requested but not available. Removing Kineto from activities.")
+                args.profile_activities = [a for a in args.profile_activities if a != "kineto"]
+        
+        # Ensure at least one activity is selected
+        if not args.profile_activities:
+            print("Warning: No valid profiling activities selected. Defaulting to CPU profiling.")
+            args.profile_activities = ["cpu"]
+        
+        # Validate schedule parameters
+        if args.profile_wait < 0 or args.profile_warmup < 0 or args.profile_steps <= 0 or args.profile_repeat <= 0:
+            raise ValueError("Profile schedule parameters must be non-negative, and steps/repeat must be positive")
+        
+        # Validate export format
+        if args.profile_export_format not in ["chrome", "json", "both"]:
+            raise ValueError("Profile export format must be 'chrome', 'json', or 'both'")
+        
+        # Validate sort options
+        valid_sort_options = ["cpu_time", "cuda_time", "cpu_time_total", "cuda_time_total", 
+                             "cpu_memory_usage", "cuda_memory_usage", "self_cpu_time", 
+                             "self_cuda_time", "count"]
+        if args.profile_sort_by not in valid_sort_options:
+            raise ValueError(f"Profile sort by must be one of: {valid_sort_options}")
+        
+        # Validate memory format
+        valid_memory_formats = ["alloc_self", "alloc_total", "self", "total"]
+        if args.profile_memory_format not in valid_memory_formats:
+            raise ValueError(f"Profile memory format must be one of: {valid_memory_formats}")
+        
+        # Validate group by options
+        valid_group_options = ["none", "stack"]
+        if args.profile_group_by not in valid_group_options:
+            raise ValueError(f"Profile group by must be one of: {valid_group_options}")
 
 
 def set_reproducibility(enable, global_seed=None, benchmark=None):
@@ -85,6 +222,14 @@ def set_reproducibility(enable, global_seed=None, benchmark=None):
 
 
 def main(args):
+    # Handle profile help
+    if args.profile_help:
+        print_profile_help()
+        return
+    
+    # Validate profiling arguments first
+    validate_profile_args(args)
+    
     if args.reproduce:
         set_reproducibility(args.reproduce, global_seed=args.seed)
 
@@ -137,29 +282,47 @@ def main(args):
 
     if args.profile:
         print(f"Profiling enabled. Will capture {args.profile_steps} step(s) and save trace to {args.profile_trace_path}")
+        print(f"Profile schedule: wait={args.profile_wait}, warmup={args.profile_warmup}, active={args.profile_steps}, repeat={args.profile_repeat}")
+
+        # Convert activity strings to ProfilerActivity enums
+        activities = []
+        for activity in args.profile_activities:
+            if activity == "cpu":
+                activities.append(torch.profiler.ProfilerActivity.CPU)
+            elif activity == "cuda":
+                activities.append(torch.profiler.ProfilerActivity.CUDA)
+            elif activity == "kineto":
+                activities.append(torch.profiler.ProfilerActivity.KINETO)
+            elif activity == "privateuse1":
+                activities.append(torch.profiler.ProfilerActivity.PRIVATEUSE1)
 
         # Configure profiler
         profiler = torch.profiler.profile(
-            activities=[
-                torch.profiler.ProfilerActivity.CPU,
-                torch.profiler.ProfilerActivity.CUDA,
-            ],
+            activities=activities,
             schedule=torch.profiler.schedule(
-                wait=0,
-                warmup=0,
+                wait=args.profile_wait,
+                warmup=args.profile_warmup,
                 active=args.profile_steps,
-                repeat=1
-            ),
-            on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                dir_name=os.path.dirname(args.profile_trace_path) or ".",
-                worker_name="hunyuan_image_gen"
+                repeat=args.profile_repeat
             ),
             record_shapes=True,
             profile_memory=True,
             with_stack=True,
-            with_flops=True,
-            with_modules=True
+            with_flops=args.profile_detailed,
+            with_modules=args.profile_detailed
         )
+
+        # Initialize timing and memory tracking
+        import time
+        start_time = None
+        end_time = None
+        peak_memory = 0
+        
+        if args.profile_timing:
+            start_time = time.time()
+        
+        if args.profile_memory_peak and torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
 
         print(f"start profiling")
         profiler.start()
@@ -178,15 +341,58 @@ def main(args):
         )
 
         profiler.stop()
-        print(f"start profiling")
+        
+        if args.profile_timing:
+            end_time = time.time()
+            total_time = end_time - start_time
+            print(f"Total execution time: {total_time:.4f} seconds")
+        
+        if args.profile_memory_peak and torch.cuda.is_available():
+            peak_memory = torch.cuda.max_memory_allocated() / 1024**3  # Convert to GB
+            print(f"Peak GPU memory usage: {peak_memory:.4f} GB")
+        
+        print(f"Profiling completed")
 
-        # Export trace
-        profiler.export_chrome_trace(args.profile_trace_path)
-        print(f"Profiler trace saved to {args.profile_trace_path}")
+        # Export trace based on format choice
+        if args.profile_export_format in ["chrome", "both"]:
+            chrome_path = args.profile_trace_path
+            if not chrome_path.endswith('.json'):
+                chrome_path = chrome_path.replace('.json', '_chrome.json')
+            profiler.export_chrome_trace(chrome_path)
+            print(f"Chrome trace saved to {chrome_path}")
+        
+        if args.profile_export_format in ["json", "both"]:
+            json_path = args.profile_trace_path
+            if not json_path.endswith('.json'):
+                json_path = json_path.replace('.json', '_trace.json')
+            profiler.export_stacks(json_path)
+            print(f"JSON trace saved to {json_path}")
 
-        # Print profiling summary
-        print("\nProfiling Summary:")
-        print(profiler.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+        # Print profiling summary with configurable options
+        print(f"\nProfiling Summary (sorted by {args.profile_sort_by}):")
+        
+        # Configure grouping
+        group_by_input_shape = False
+        if args.profile_group_by == "stack":
+            group_by_input_shape = True
+        
+        # Get key averages with grouping
+        key_averages = profiler.key_averages(group_by_input_shape=group_by_input_shape)
+        
+        # Print table with configurable sorting and row limit
+        print(key_averages.table(
+            sort_by=args.profile_sort_by, 
+            row_limit=args.profile_row_limit
+        ))
+        
+        # Print memory summary if detailed profiling is enabled
+        if args.profile_detailed:
+            print(f"\nMemory Summary (format: {args.profile_memory_format}):")
+            memory_summary = profiler.key_averages().table(
+                sort_by="cpu_memory_usage",
+                row_limit=args.profile_row_limit
+            )
+            print(memory_summary)
 
     else:
         # Generate image without profiling
@@ -208,5 +414,10 @@ def main(args):
 
 
 if __name__ == "__main__":
+    # Check for profile help before parsing all arguments
+    if "--profile-help" in sys.argv:
+        print_profile_help()
+        sys.exit(0)
+    
     args = parse_args()
     main(args)
