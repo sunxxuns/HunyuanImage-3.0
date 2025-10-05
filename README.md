@@ -1,9 +1,9 @@
 to run on mi350
 ```
-python run_image_gen.py --prompt "Pikachu holding an amd chip" --diff-infer-steps 50 --compile-mode max-autotune
+python run_image_gen.py --prompt "Medusa holding an amd chip" --diff-infer-steps 50 --compile-mode max-autotune
 ```
+<img width="415" height="406" alt="image" src="https://github.com/user-attachments/assets/88872c13-267a-4c27-acd7-70e451be0c35" />
 
-<img width="425" height="433" alt="image" src="https://github.com/user-attachments/assets/dfb4df7e-a25f-4b2f-a2af-6fbd083a3726" />
 
 
 
