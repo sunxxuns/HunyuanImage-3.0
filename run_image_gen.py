@@ -269,7 +269,6 @@ def main(args):
         print(f"Compiling model with torch.compile (mode: {args.compile_mode})...")
         
         # Set environment variables to improve compilation
-        import os
         os.environ["TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS"] = "1"
         os.environ["TORCH_COMPILE_DEBUG"] = "1"
         
