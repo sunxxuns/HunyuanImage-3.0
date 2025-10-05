@@ -1,3 +1,12 @@
+to run on mi350
+```
+python run_image_gen.py --prompt "Pikachu holding an amd chip" --diff-infer-steps 50 --compile-mode max-autotune
+```
+
+<img width="425" height="433" alt="image" src="https://github.com/user-attachments/assets/dfb4df7e-a25f-4b2f-a2af-6fbd083a3726" />
+
+
+
 [中文文档](./README_zh_CN.md)
 
 <div align="center">
