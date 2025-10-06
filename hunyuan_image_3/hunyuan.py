@@ -47,18 +47,17 @@ def _repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
 
 def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None):
     """
+    AITer-based scaled dot product attention for AMD/ROCm hardware.
     Accepts q/k/v in either (B, H, T, D) or (B, T, H, D). Returns (B, H, T, D).
-    Falls back to native SDPA if shapes/types aren't supported.
+    Raises errors for unsupported shapes/types instead of falling back.
     """
     # Only handle 4D batched attention
     if any(t is None for t in (q, k, v)) or q.dim() != 4 or k.dim() != 4 or v.dim() != 4:
-        print(f"cannot use aiter in hunyuan.py")
-        return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
-
+        raise ValueError("AITer requires 4D batched attention tensors")
+    
     # Normalize layout to (B, T, H, D)
     if q.shape[1] == q.shape[2]:  # ambiguous; fallback
-        print(f"cannot use aiter in hunyuan.py")
-        return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
+        raise ValueError("AITer cannot handle ambiguous tensor shapes where H == T")
     if q.shape[1] < q.shape[2]:
         # (B, H, T, D) -> (B, T, H, D)
         q_ = q.permute(0, 2, 1, 3).contiguous()
@@ -75,7 +74,7 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
     if Hq != Hkv:
         rep = Hq // max(Hkv, 1)
         if rep <= 0 or (Hkv * rep) != Hq:
-            return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
+            raise ValueError(f"AITer cannot handle head replication: Hq={Hq}, Hkv={Hkv}")
         k_ = _repeat_kv(k_, rep)
         v_ = _repeat_kv(v_, rep)
 
@@ -86,67 +85,32 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
     # is_causal wins if provided; most diffusion text encoders use causal=True
     causal = True if is_causal else False
     try:
-        print(f"XXXX {aiter.flash_attn_func}")
         out, _lse = aiter.flash_attn_func(
             qbf, kbf, vbf,
             causal=causal,
             return_lse=True,
             deterministic=False,
         )
-    except Exception:
-        # If anything goes sideways, fall back to native
-        assert 0
-        print(f"cannot use aiter in hunyuan.py")
-        return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
+    except Exception as e:
+        # AITer must work on AMD hardware - this is a critical failure
+        raise RuntimeError(f"AITer flash attention failed on AMD hardware: {e}") from e
 
     out = out.to(orig_dtype)
     return back_perm(out)
 
-def _enable_aiter_on_amd():
+def _check_aiter_availability():
+    """Check if AITer is available and we're on AMD hardware."""
     on_amd = getattr(torch.version, "hip", None) is not None
-    if not (on_amd and _HAS_AITER):
+    if not on_amd:
+        print("[HunyuanImage] Not on AMD hardware, AITer not needed.")
         return False
-    F = torch.nn.functional
-    if not hasattr(F, "_orig_sdpa"):
-        F._orig_sdpa = F.scaled_dot_product_attention
-    F.scaled_dot_product_attention = _sdpa_with_aiter
-
-    # If the code imports FlashAttention v2 directly, spoof a minimal module
-    # so "from flash_attn import flash_attn_func" doesn't crash.
-    if "flash_attn" not in sys.modules:
-        flash_attn_module = types.ModuleType("flash_attn")
-        flash_attn_module.flash_attn_func = _sdpa_with_aiter
-        flash_attn_module.flash_attn_varlen_func = _sdpa_with_aiter  # Add varlen function
-
-        # Create bert_padding submodule
-        bert_padding_module = types.ModuleType("bert_padding")
-        def mock_pad_input(*args, **kwargs):
-            # Return the input as-is for simplicity
-            return args[0] if args else None
-        def mock_unpad_input(*args, **kwargs):
-            # Return the input as-is for simplicity
-            return args[0] if args else None
-        bert_padding_module.pad_input = mock_pad_input
-        bert_padding_module.unpad_input = mock_unpad_input
-        flash_attn_module.bert_padding = bert_padding_module
-
-        # Create a minimal spec-like object
-        class MockSpec:
-            name = "flash_attn"
-            origin = None
-            loader = None
-            submodule_search_locations = None
-        flash_attn_module.__spec__ = MockSpec()
-        sys.modules["flash_attn"] = flash_attn_module
-        sys.modules["flash_attn.bert_padding"] = bert_padding_module
+    if not _HAS_AITER:
+        print("[HunyuanImage] AITer not available on AMD hardware.")
+        return False
+    print("[HunyuanImage] Using AITer fast attention on AMD/ROCm.")
     return True
 
-_EN_AITER = _enable_aiter_on_amd()
-if _EN_AITER:
-    print("[HunyuanImage] Using AITer fast attention on AMD/ROCm (FlashAttn v2 disabled).")
-else:
-    print("[HunyuanImage] AITer not enabled (non-AMD or aiter missing); using default attention.")
-# --- end AITer patch ---
+_EN_AITER = _check_aiter_availability()
 from transformers.generation.stopping_criteria import StoppingCriteriaList
 from transformers.generation.utils import GenerationMixin, GenerationConfig, ALL_CACHE_NAMES
 from transformers.modeling_outputs import (
@@ -182,11 +146,10 @@ from .system_prompt import get_system_prompt, t2i_system_prompts
 logger = logging.get_logger(__name__)
 
 
-if is_flash_attn_2_available():
-    print(f"importing aiter")
+if _HAS_AITER:
     from aiter import flash_attn_func
 else:
-    assert 0
+    raise ImportError("AITer is required for AMD/ROCm support but not available. Please install with: pip install aiter")
 
 # Type aliases
 BatchRaggedImages = Union[torch.Tensor, List[Union[torch.Tensor, List[torch.Tensor]]]]
@@ -1500,8 +1463,9 @@ class HunyuanImage3FlashAttention2(HunyuanImage3SDPAAttention):
         # For gen_text and gen_image, we need to handle the attention differently
         torch.cuda.set_device(q_fa.device.index)
         with nvtx.range("attention"):
-            assert "aiter" in str(getattr(flash_attn_func, "__module__", "")), \
-            f"flash_attn_func is not AITer: {flash_attn_func}"
+            if not _EN_AITER:
+                raise RuntimeError("AITer is required but not available")
+            
             if mode == "gen_text":
                 if attention_mask is None:
                     attn_output = flash_attn_func(q_fa, k_fa, v_fa, causal=False)   # decode attention

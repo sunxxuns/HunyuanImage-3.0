@@ -39,18 +39,17 @@ def _repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
 
 def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None):
     """
+    AITer-based scaled dot product attention for AMD/ROCm hardware.
     Accepts q/k/v in either (B, H, T, D) or (B, T, H, D). Returns (B, H, T, D).
-    Falls back to native SDPA if shapes/types aren't supported.
+    Raises errors for unsupported shapes/types instead of falling back.
     """
     # Only handle 4D batched attention
     if any(t is None for t in (q, k, v)) or q.dim() != 4 or k.dim() != 4 or v.dim() != 4:
-        print(f"skip aiter")
-        return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
-
+        raise ValueError("AITer requires 4D batched attention tensors")
+    
     # Normalize layout to (B, T, H, D)
     if q.shape[1] == q.shape[2]:  # ambiguous; fallback
-        print(f"skip aiter")
-        return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
+        raise ValueError("AITer cannot handle ambiguous tensor shapes where H == T")
     if q.shape[1] < q.shape[2]:
         # (B, H, T, D) -> (B, T, H, D)
         q_ = q.permute(0, 2, 1, 3).contiguous()
@@ -67,8 +66,7 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
     if Hq != Hkv:
         rep = Hq // max(Hkv, 1)
         if rep <= 0 or (Hkv * rep) != Hq:
-            print(f"skip aiter")
-            return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
+            raise ValueError(f"AITer cannot handle head replication: Hq={Hq}, Hkv={Hkv}")
         k_ = _repeat_kv(k_, rep)
         v_ = _repeat_kv(v_, rep)
 
@@ -85,58 +83,26 @@ def _sdpa_with_aiter(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, sc
             return_lse=True,
             deterministic=False,
         )
-    except Exception:
-        # If anything goes sideways, fall back to native
-        return torch.nn.functional._orig_sdpa(q, k, v, attn_mask, dropout_p, is_causal, scale)
+    except Exception as e:
+        # AITer must work on AMD hardware - this is a critical failure
+        raise RuntimeError(f"AITer flash attention failed on AMD hardware: {e}") from e
 
     out = out.to(orig_dtype)
     return back_perm(out)
 
-def _enable_aiter_on_amd():
+def _check_aiter_availability():
+    """Check if AITer is available and we're on AMD hardware."""
     on_amd = getattr(torch.version, "hip", None) is not None
-    if not (on_amd and _HAS_AITER):
-        print(f"aiter not available")
+    if not on_amd:
+        print("[AutoencoderKL3D] Not on AMD hardware, AITer not needed.")
         return False
-    F = torch.nn.functional
-    if not hasattr(F, "_orig_sdpa"):
-        F._orig_sdpa = F.scaled_dot_product_attention
-    F.scaled_dot_product_attention = _sdpa_with_aiter
-
-    # If the code imports FlashAttention v2 directly, spoof a minimal module
-    # so "from flash_attn import flash_attn_func" doesn't crash.
-    if "flash_attn" not in sys.modules:
-        flash_attn_module = types.ModuleType("flash_attn")
-        flash_attn_module.flash_attn_func = _sdpa_with_aiter
-        flash_attn_module.flash_attn_varlen_func = _sdpa_with_aiter  # Add varlen function
-
-        # Create bert_padding submodule
-        bert_padding_module = types.ModuleType("bert_padding")
-        def mock_pad_input(*args, **kwargs):
-            # Return the input as-is for simplicity
-            return args[0] if args else None
-        def mock_unpad_input(*args, **kwargs):
-            # Return the input as-is for simplicity
-            return args[0] if args else None
-        bert_padding_module.pad_input = mock_pad_input
-        bert_padding_module.unpad_input = mock_unpad_input
-        flash_attn_module.bert_padding = bert_padding_module
-
-        # Create a minimal spec-like object
-        class MockSpec:
-            name = "flash_attn"
-            origin = None
-            loader = None
-            submodule_search_locations = None
-        flash_attn_module.__spec__ = MockSpec()
-        sys.modules["flash_attn"] = flash_attn_module
-        sys.modules["flash_attn.bert_padding"] = bert_padding_module
+    if not _HAS_AITER:
+        print("[AutoencoderKL3D] AITer not available on AMD hardware.")
+        return False
+    print("[AutoencoderKL3D] Using AITer fast attention on AMD/ROCm.")
     return True
 
-_EN_AITER = _enable_aiter_on_amd()
-if _EN_AITER:
-    print("[AutoencoderKL3D] Using AITer fast attention on AMD/ROCm (FlashAttn v2 disabled).")
-else:
-    print("[AutoencoderKL3D] AITer not enabled (non-AMD or aiter missing); using default attention.")
+_EN_AITER = _check_aiter_availability()
 # --- end AITer patch ---
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
